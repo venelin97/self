@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZenMood OS | Final Master Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Outfit', sans-serif; background: #030712; color: #f3f4f6; scroll-behavior: smooth; overflow-x: hidden; }
+        .glass { background: rgba(17, 24, 39, 0.7); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.08); }
+        .stats-gradient { background: linear-gradient(145deg, rgba(31, 41, 55, 0.4), rgba(17, 24, 39, 0.9)); }
+        
+        /* Custom Range Slider */
+        input[type="range"] { -webkit-appearance: none; background: #1f2937; height: 8px; border-radius: 10px; cursor: pointer; }
+        input[type="range"]::-webkit-slider-thumb { 
+            -webkit-appearance: none; width: 22px; height: 22px; 
+            background: #6366f1; border-radius: 50%; 
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.6); border: 2px solid #ffffff; transition: transform 0.1s;
+        }
+        input[type="range"]::-webkit-slider-thumb:active { transform: scale(1.2); }
+
+        /* Calendar Animations & Selection */
+        .day-cell { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .day-cell:hover:not(.empty-cell) { transform: scale(1.08); z-index: 10; filter: brightness(1.2); }
+        .day-selected { box-shadow: 0 0 0 3px #ffffff, 0 0 20px rgba(255,255,255,0.4); transform: scale(1.05); z-index: 5; }
+        
+        .animate-pop { animation: pop 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes pop { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+
+        .weight-badge { font-size: 0.6rem; padding: 2px 6px; border-radius: 4px; background: rgba(99, 102, 241, 0.2); color: #818cf8; }
+        .custom-scroll::-webkit-scrollbar { width: 5px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #374151; border-radius: 10px; }
+    </style>
+</head>
+<body class="min-h-screen pb-20">
+
+    <div class="max-w-[1440px] mx-auto px-4 md:px-8 pt-6 md:pt-10">
+        
+        <header class="flex flex-col md:flex-row justify-between items-center mb-8 glass p-6 md:p-8 rounded-[2rem] shadow-2xl">
+            <div class="flex items-center gap-4 md:gap-6">
+                <div class="w-12 h-12 md:w-14 md:h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-2xl md:text-3xl shadow-lg shadow-indigo-500/20">💎</div>
+                <div>
+                    <h1 class="text-2xl md:text-3xl font-black tracking-tighter uppercase italic bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-400">ZenMood OS <span class="text-white">vFinal</span></h1>
+                    <p class="text-slate-500 text-[9px] md:text-[10px] font-bold tracking-[0.3em] uppercase">The Ultimate Life Analysis Suite</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-6 mt-4 md:mt-0 w-full md:w-auto justify-between md:justify-end">
+                <div class="text-left md:text-right">
+                    <div id="clock" class="text-xl md:text-2xl font-black text-indigo-400 leading-none">00:00:00</div>
+                    <div id="dateNow" class="text-[9px] md:text-[10px] text-slate-500 font-bold uppercase mt-1 tracking-widest">--</div>
+                </div>
+                <button onclick="exportData()" class="px-5 py-2 md:px-6 md:py-2.5 bg-indigo-600/10 border border-indigo-500/30 rounded-xl text-[10px] md:text-xs font-bold text-indigo-400 hover:bg-indigo-600 hover:text-white transition-all">BACKUP</button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
+            
+            <div class="lg:col-span-4 space-y-6">
+                <section class="glass p-6 md:p-8 rounded-[2.5rem] relative overflow-hidden">
+                    <div class="flex justify-between items-center mb-8">
+                        <h2 class="text-lg md:text-xl font-black uppercase italic tracking-tighter">Дневен Индекс</h2>
+                        <button onclick="toggleSettings()" class="text-slate-500 hover:text-indigo-400 transition transform hover:rotate-90 duration-300">⚙️</button>
+                    </div>
+
+                    <div id="settingsPanel" class="hidden mb-8 p-5 md:p-6 bg-black/40 rounded-3xl border border-white/5 animate-pop">
+                        <h3 class="text-[9px] md:text-[10px] font-black text-indigo-400 uppercase mb-4 tracking-widest">Конфигурация на тежестите</h3>
+                        <div id="configList" class="space-y-3 mb-4 max-h-[200px] overflow-y-auto custom-scroll pr-2"></div>
+                        <div class="flex gap-2">
+                            <input id="newCompName" type="text" placeholder="Нов критерий..." class="flex-1 bg-slate-900 rounded-xl px-4 py-2 text-xs outline-none border border-white/5 focus:border-indigo-500/50 transition">
+                            <button onclick="addCriterion()" class="bg-indigo-600 px-4 rounded-xl font-bold hover:bg-indigo-500 transition">+</button>
+                        </div>
+                        <div id="weightStatus" class="mt-4 text-[10px] font-bold text-center py-1.5 rounded-lg transition-colors"></div>
+                    </div>
+
+                    <div id="slidersContainer" class="space-y-6 custom-scroll max-h-[45vh] overflow-y-auto pr-3"></div>
+
+                    <div class="mt-8 p-6 md:p-8 stats-gradient rounded-[2rem] border border-white/5 flex flex-col items-center justify-center relative shadow-inner">
+                        <span class="text-[9px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 md:mb-2 text-center">Обща претеглена оценка</span>
+                        <div id="totalScore" class="text-6xl md:text-7xl font-black italic text-transparent bg-clip-text bg-gradient-to-b from-white to-indigo-500 py-2 pr-3 leading-tight">5.0</div>
+                        <div id="statusLabel" class="mt-2 px-4 py-1 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest bg-white/5 transition-colors">Неутрален</div>
+                    </div>
+
+                    <textarea id="dayNote" class="w-full mt-6 bg-slate-900/50 border border-white/5 rounded-[1.5rem] p-4 md:p-5 text-sm outline-none focus:ring-2 ring-indigo-500/30 h-24 md:h-28 transition-all resize-none" placeholder="Какво се случи днес?"></textarea>
+                    <button onclick="saveDay()" class="w-full mt-4 bg-gradient-to-r from-indigo-600 to-indigo-800 py-4 md:py-5 rounded-[1.5rem] font-black text-xs md:text-sm uppercase tracking-widest hover:shadow-[0_10px_30px_rgba(79,70,229,0.4)] transition-all active:scale-[0.98]">Запази Деня</button>
+                </section>
+            </div>
+
+            <div class="lg:col-span-8 space-y-6">
+                
+                <section class="glass p-6 md:p-8 rounded-[2.5rem]">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4">
+                        <div>
+                            <h2 class="text-xl md:text-2xl font-black uppercase italic tracking-tighter">Център за Анализи</h2>
+                            <p id="analysisContextMsg" class="text-indigo-400 text-[10px] font-bold uppercase tracking-widest mt-1 hidden">Статистика за ръчно избрани дни</p>
+                        </div>
+                        
+                        <div class="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                            <div id="dateRangeWrapper" class="flex items-center gap-2 bg-black/40 p-2 rounded-2xl border border-white/5 w-full sm:w-auto justify-between">
+                                <input type="date" id="statStart" class="bg-transparent text-[10px] md:text-xs text-indigo-400 outline-none font-bold cursor-pointer">
+                                <span class="text-slate-600 text-[10px]">КЪМ</span>
+                                <input type="date" id="statEnd" class="bg-transparent text-[10px] md:text-xs text-indigo-400 outline-none font-bold cursor-pointer">
+                                <button onclick="calculatePeriodStats(false)" class="bg-indigo-600 px-3 py-1.5 rounded-lg text-[9px] md:text-[10px] font-black hover:bg-indigo-500 transition">АНАЛИЗ</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
+                        <div class="stats-gradient p-4 md:p-5 rounded-2xl md:rounded-3xl border border-white/5">
+                            <p class="text-[8px] md:text-[9px] text-slate-500 font-bold uppercase mb-1">Средна оценка</p>
+                            <div id="resAvg" class="text-2xl md:text-3xl font-black text-indigo-400">--</div>
+                        </div>
+                        <div class="stats-gradient p-4 md:p-5 rounded-2xl md:rounded-3xl border border-white/5 text-emerald-400">
+                            <p class="text-[8px] md:text-[9px] text-slate-500 font-bold uppercase mb-1">Най-висока</p>
+                            <div id="resMax" class="text-2xl md:text-3xl font-black">--</div>
+                        </div>
+                        <div class="stats-gradient p-4 md:p-5 rounded-2xl md:rounded-3xl border border-white/5 text-rose-400">
+                            <p class="text-[8px] md:text-[9px] text-slate-500 font-bold uppercase mb-1">Най-ниска</p>
+                            <div id="resMin" class="text-2xl md:text-3xl font-black">--</div>
+                        </div>
+                        <div class="stats-gradient p-4 md:p-5 rounded-2xl md:rounded-3xl border border-white/5 text-amber-400">
+                            <p class="text-[8px] md:text-[9px] text-slate-500 font-bold uppercase mb-1">Общо дни</p>
+                            <div id="resCount" class="text-2xl md:text-3xl font-black">0</div>
+                        </div>
+                    </div>
+
+                    <h3 class="text-[9px] md:text-[10px] font-black text-slate-500 uppercase mb-3 md:mb-4 tracking-widest">Средно представяне по критерии</h3>
+                    <div id="criteriaStats" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 md:gap-3"></div>
+                </section>
+
+                <section class="glass p-6 md:p-8 rounded-[2.5rem]">
+                    <div class="flex flex-col md:flex-row justify-between items-center mb-6 md:mb-8 gap-4">
+                        <div class="flex items-center gap-3 bg-slate-900/50 p-1.5 md:p-2 rounded-2xl">
+                            <button onclick="changeMonth(-1)" class="p-2 md:p-3 hover:bg-white/5 rounded-xl text-indigo-400 font-bold transition">←</button>
+                            <h2 id="calMonthTitle" class="text-base md:text-lg font-black uppercase tracking-tighter min-w-[120px] md:min-w-[140px] text-center"></h2>
+                            <button onclick="changeMonth(1)" class="p-2 md:p-3 hover:bg-white/5 rounded-xl text-indigo-400 font-bold transition">→</button>
+                        </div>
+                        
+                        <div class="flex flex-col items-end gap-2">
+                            <button id="selectionToggleBtn" onclick="toggleSelectionMode()" class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-600 text-[10px] font-bold text-slate-400 hover:text-white hover:border-white transition-all">
+                                <span class="w-2 h-2 rounded-full bg-slate-500" id="selectionDot"></span>
+                                РЕЖИМ СЕЛЕКЦИЯ
+                            </button>
+                            <div class="flex gap-2">
+                                 <div class="w-2.5 h-2.5 md:w-3 md:h-3 rounded bg-emerald-500/40 border border-emerald-500/20" title="8-10"></div>
+                                 <div class="w-2.5 h-2.5 md:w-3 md:h-3 rounded bg-blue-500/40 border border-blue-500/20" title="6-8"></div>
+                                 <div class="w-2.5 h-2.5 md:w-3 md:h-3 rounded bg-amber-500/40 border border-amber-500/20" title="4-6"></div>
+                                 <div class="w-2.5 h-2.5 md:w-3 md:h-3 rounded bg-rose-500/40 border border-rose-500/20" title="0-4"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-7 gap-2 md:gap-3 mb-2 text-center text-[9px] md:text-[10px] font-black text-slate-600 uppercase tracking-widest">
+                        <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Нд</div>
+                    </div>
+                    <div id="calendarGrid" class="grid grid-cols-7 gap-2 md:gap-3"></div>
+                </section>
+
+                <div id="dayDetail" class="hidden glass p-6 md:p-10 rounded-[2.5rem] md:rounded-[3rem] animate-pop border-t-4 md:border-t-8 border-indigo-600 shadow-2xl relative">
+                    <button onclick="closeDetail()" class="absolute top-6 right-6 text-slate-500 hover:text-white font-bold text-xl">✕</button>
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4">
+                        <div>
+                            <h4 id="detailDate" class="text-2xl md:text-3xl font-black italic tracking-tighter uppercase pr-8"></h4>
+                            <p class="text-slate-500 text-[10px] md:text-xs font-bold mt-1">ДЕТАЙЛЕН ПРЕГЛЕД НА ДЕНЯ</p>
+                        </div>
+                        <div id="detailAvg" class="text-5xl md:text-6xl font-black italic px-6 py-3 md:px-8 md:py-4 rounded-[1.5rem] md:rounded-[2rem] stats-gradient border border-white/5 shadow-lg"></div>
+                    </div>
+                    <div id="detailScoresGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4 mb-6 md:mb-8"></div>
+                    <div class="p-6 md:p-8 bg-black/30 rounded-[1.5rem] md:rounded-[2rem] border border-white/5 italic text-slate-300 leading-relaxed relative overflow-hidden text-sm md:text-base">
+                        <span class="absolute top-2 left-3 text-4xl md:text-5xl opacity-10 text-indigo-400 font-serif">"</span>
+                        <p id="detailNote" class="relative z-10 whitespace-pre-wrap"></p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- STATE & DATA ---
+        let criteria = JSON.parse(localStorage.getItem('zm_final_cfg')) || [
+            { name: "Енергия", weight: 25 }, { name: "Продуктивност", weight: 25 },
+            { name: "Емоции", weight: 25 }, { name: "Сън", weight: 25 }
+        ];
+        let history = JSON.parse(localStorage.getItem('zm_final_db')) || {};
+        let viewDate = new Date();
+        
+        // Selection State
+        let isSelectionMode = false;
+        let selectedDates = [];
+
+        // --- INIT ---
+        function init() {
+            renderSliders();
+            renderConfig();
+            
+            // Set default dates for analytics (last 30 days)
+            const end = new Date();
+            const start = new Date();
+            start.setDate(start.getDate() - 30);
+            document.getElementById('statStart').value = start.toISOString().split('T')[0];
+            document.getElementById('statEnd').value = end.toISOString().split('T')[0];
+            
+            renderCalendar();
+            calculatePeriodStats(false);
+            updateClock();
+            setInterval(updateClock, 1000);
+        }
+
+        function updateClock() {
+            const n = new Date();
+            document.getElementById('clock').innerText = n.toLocaleTimeString('bg-BG', {hour12:false});
+            document.getElementById('dateNow').innerText = n.toLocaleDateString('bg-BG', {weekday:'long', day:'numeric', month:'long'});
+        }
+
+        // --- SLIDERS & CALCULATION ---
+        function renderSliders() {
+            const container = document.getElementById('slidersContainer');
+            container.innerHTML = criteria.map(c => `
+                <div class="group">
+                    <div class="flex justify-between items-end mb-2">
+                        <div class="flex flex-col">
+                            <span class="text-[10px] md:text-xs font-black uppercase text-slate-400 group-hover:text-indigo-400 transition tracking-widest">${c.name}</span>
+                            <span class="weight-badge w-fit mt-1">${c.weight}% ТЕЖЕСТ</span>
+                        </div>
+                        <span class="text-xl md:text-2xl font-black text-white italic" id="val_${c.name}">5.0</span>
+                    </div>
+                    <input type="range" min="1" max="10" step="0.1" value="5.0" class="w-full" oninput="updateLiveVal('${c.name}', this.value)">
+                </div>
+            `).join('');
+            calcMainScore();
+        }
+
+        function updateLiveVal(name, val) {
+            document.getElementById(`val_${name}`).innerText = parseFloat(val).toFixed(1);
+            calcMainScore();
+        }
+
+        function calcMainScore() {
+            let total = 0;
+            criteria.forEach(c => {
+                const s = parseFloat(document.getElementById(`val_${c.name}`).innerText);
+                total += (s * (c.weight / 100));
+            });
+            const score = total.toFixed(1);
+            document.getElementById('totalScore').innerText = score;
+
+            const label = document.getElementById('statusLabel');
+            if(score >= 8) { label.innerText = "Перфектен"; label.className = "mt-2 px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-500/20 text-emerald-400"; }
+            else if(score >= 6) { label.innerText = "Добър"; label.className = "mt-2 px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-blue-500/20 text-blue-400"; }
+            else if(score >= 4) { label.innerText = "Среден"; label.className = "mt-2 px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-amber-500/20 text-amber-400"; }
+            else { label.innerText = "Критичен"; label.className = "mt-2 px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-rose-500/20 text-rose-400"; }
+        }
+
+        // --- CONFIGURATION ---
+        function toggleSettings() { document.getElementById('settingsPanel').classList.toggle('hidden'); }
+        function renderConfig() {
+            const list = document.getElementById('configList');
+            let sum = 0;
+            list.innerHTML = criteria.map((c, i) => {
+                sum += c.weight;
+                return `
+                <div class="flex items-center justify-between bg-white/5 p-2 md:p-3 rounded-xl md:rounded-2xl border border-transparent hover:border-white/10 transition">
+                    <span class="text-[10px] md:text-xs font-bold">${c.name}</span>
+                    <div class="flex items-center gap-2">
+                        <input type="number" value="${c.weight}" onchange="updateWeight(${i}, this.value)" class="w-10 md:w-12 bg-indigo-900/30 text-indigo-400 text-[10px] text-center rounded-md border border-indigo-500/20 outline-none py-1">
+                        <button onclick="removeCriterion(${i})" class="text-rose-500 font-black px-2 hover:scale-125 transition">✕</button>
+                    </div>
+                </div>`;
+            }).join('');
+            
+            const status = document.getElementById('weightStatus');
+            status.innerText = `ОБЩО: ${sum}% (ЦЕЛ: 100%)`;
+            status.className = `mt-4 text-[10px] font-bold text-center py-1.5 rounded-lg ${sum === 100 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`;
+        }
+
+        function updateWeight(i, v) { criteria[i].weight = parseInt(v) || 0; saveConfig(); }
+        function addCriterion() {
+            const n = document.getElementById('newCompName').value.trim();
+            if(n) { criteria.push({name: n, weight: 0}); saveConfig(); document.getElementById('newCompName').value = ''; }
+        }
+        function removeCriterion(i) { criteria.splice(i, 1); saveConfig(); }
+        function saveConfig() { localStorage.setItem('zm_final_cfg', JSON.stringify(criteria)); renderConfig(); renderSliders(); }
+
+        // --- SELECTION MODE ---
+        function toggleSelectionMode() {
+            isSelectionMode = !isSelectionMode;
+            selectedDates = []; // Clear on toggle
+            
+            const btn = document.getElementById('selectionToggleBtn');
+            const dot = document.getElementById('selectionDot');
+            
+            if(isSelectionMode) {
+                btn.classList.add('border-indigo-400', 'text-indigo-400');
+                btn.classList.remove('border-slate-600', 'text-slate-400');
+                dot.classList.add('bg-indigo-400', 'animate-pulse');
+                dot.classList.remove('bg-slate-500');
+                document.getElementById('dateRangeWrapper').classList.add('opacity-30', 'pointer-events-none');
+                document.getElementById('analysisContextMsg').classList.remove('hidden');
+                closeDetail();
+            } else {
+                btn.classList.remove('border-indigo-400', 'text-indigo-400');
+                btn.classList.add('border-slate-600', 'text-slate-400');
+                dot.classList.remove('bg-indigo-400', 'animate-pulse');
+                dot.classList.add('bg-slate-500');
+                document.getElementById('dateRangeWrapper').classList.remove('opacity-30', 'pointer-events-none');
+                document.getElementById('analysisContextMsg').classList.add('hidden');
+            }
+            
+            renderCalendar();
+            calculatePeriodStats(false); // Reset stats to date range
+        }
+
+        // --- CALENDAR ---
+        function changeMonth(dir) { viewDate.setMonth(viewDate.getMonth() + dir); renderCalendar(); }
+        function renderCalendar() {
+            const grid = document.getElementById('calendarGrid'); grid.innerHTML = '';
+            const m = viewDate.getMonth(), y = viewDate.getFullYear();
+            document.getElementById('calMonthTitle').innerText = new Intl.DateTimeFormat('bg-BG', {month:'long', year:'numeric'}).format(viewDate);
+            
+            const firstDay = new Date(y, m, 1).getDay() || 7;
+            const daysInMonth = new Date(y, m + 1, 0).getDate();
+
+            for(let i=1; i < firstDay; i++) {
+                const empty = document.createElement('div');
+                empty.className = 'empty-cell';
+                grid.appendChild(empty);
+            }
+
+            for(let d=1; d <= daysInMonth; d++) {
+                const key = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const entry = history[key];
+                const cell = document.createElement('div');
+                cell.className = `day-cell h-10 md:h-14 flex items-center justify-center rounded-xl md:rounded-2xl text-[10px] md:text-xs font-black cursor-pointer glass select-none`;
+                
+                if(entry) {
+                    const v = parseFloat(entry.avg);
+                    let color = 'rgba(244, 63, 94, 0.4)'; // Rose
+                    if(v >= 8) color = 'rgba(16, 185, 129, 0.4)'; // Emerald
+                    else if(v >= 6) color = 'rgba(59, 130, 246, 0.4)'; // Blue
+                    else if(v >= 4) color = 'rgba(245, 158, 11, 0.4)'; // Amber
+                    
+                    cell.style.background = color;
+                    cell.style.borderColor = color.replace('0.4', '0.8');
+                    
+                    if(selectedDates.includes(key)) {
+                        cell.classList.add('day-selected');
+                    }
+
+                    cell.onclick = () => {
+                        if(isSelectionMode) {
+                            if(selectedDates.includes(key)) {
+                                selectedDates = selectedDates.filter(date => date !== key);
+                                cell.classList.remove('day-selected');
+                            } else {
+                                selectedDates.push(key);
+                                cell.classList.add('day-selected');
+                            }
+                            calculatePeriodStats(true);
+                        } else {
+                            showDayDetail(key, entry);
+                        }
+                    };
+                } else { 
+                    cell.style.opacity = "0.15"; 
+                    cell.style.cursor = "default";
+                }
+                cell.innerText = d;
+                grid.appendChild(cell);
+            }
+        }
+
+        // --- ANALYTICS HUB ---
+        function calculatePeriodStats(useSelection = false) {
+            let filteredKeys = [];
+
+            if(useSelection) {
+                filteredKeys = selectedDates;
+                if(filteredKeys.length === 0) {
+                    resetStatsUI();
+                    return;
+                }
+            } else {
+                const start = document.getElementById('statStart').value;
+                const end = document.getElementById('statEnd').value;
+                if(!start || !end) return;
+                filteredKeys = Object.keys(history).filter(k => k >= start && k <= end);
+            }
+
+            if(filteredKeys.length === 0) {
+                resetStatsUI();
+                return;
+            }
+
+            const entries = filteredKeys.map(k => history[k]);
+            const avg = entries.reduce((a, b) => a + parseFloat(b.avg), 0) / entries.length;
+            const max = Math.max(...entries.map(e => parseFloat(e.avg)));
+            const min = Math.min(...entries.map(e => parseFloat(e.avg)));
+
+            document.getElementById('resAvg').innerText = avg.toFixed(1);
+            document.getElementById('resMax').innerText = max.toFixed(1);
+            document.getElementById('resMin').innerText = min.toFixed(1);
+            document.getElementById('resCount').innerText = filteredKeys.length;
+
+            const cStats = {};
+            criteria.forEach(c => {
+                let sum = 0, count = 0;
+                entries.forEach(e => { if(e.scores && e.scores[c.name]) { sum += parseFloat(e.scores[c.name]); count++; } });
+                cStats[c.name] = count > 0 ? (sum / count).toFixed(1) : "--";
+            });
+
+            document.getElementById('criteriaStats').innerHTML = Object.entries(cStats).map(([n, v]) => `
+                <div class="stats-gradient p-3 md:p-4 rounded-xl md:rounded-2xl border border-white/5 text-center transition hover:border-indigo-500/30">
+                    <p class="text-[8px] md:text-[9px] text-slate-500 font-bold uppercase tracking-tighter truncate">${n}</p>
+                    <p class="text-sm md:text-base font-black text-indigo-300 mt-1">${v}</p>
+                </div>
+            `).join('');
+        }
+
+        function resetStatsUI() {
+            document.getElementById('resAvg').innerText = "--";
+            document.getElementById('resMax').innerText = "--";
+            document.getElementById('resMin').innerText = "--";
+            document.getElementById('resCount').innerText = "0";
+            document.getElementById('criteriaStats').innerHTML = '<p class="text-xs text-slate-600 italic col-span-full">Няма данни за избрания филтър.</p>';
+        }
+
+        // --- DETAIL PANEL ---
+        function showDayDetail(date, entry) {
+            const p = document.getElementById('dayDetail'); p.classList.remove('hidden');
+            document.getElementById('detailDate').innerText = new Date(date).toLocaleDateString('bg-BG', {day:'numeric', month:'long', year:'numeric'});
+            const avgEl = document.getElementById('detailAvg');
+            avgEl.innerText = entry.avg;
+            
+            const v = parseFloat(entry.avg);
+            if(v >= 8) { avgEl.style.color = "#10b981"; avgEl.style.textShadow = "0 0 20px rgba(16,185,129,0.3)"; }
+            else if(v >= 6) { avgEl.style.color = "#3b82f6"; avgEl.style.textShadow = "0 0 20px rgba(59,130,246,0.3)"; }
+            else if(v >= 4) { avgEl.style.color = "#f59e0b"; avgEl.style.textShadow = "0 0 20px rgba(245,158,11,0.3)"; }
+            else { avgEl.style.color = "#f43f5e"; avgEl.style.textShadow = "0 0 20px rgba(244,63,94,0.3)"; }
+
+            document.getElementById('detailNote').innerText = entry.note || "Няма добавена бележка за този ден.";
+            document.getElementById('detailScoresGrid').innerHTML = Object.entries(entry.scores).map(([n, s]) => `
+                <div class="stats-gradient p-3 md:p-4 rounded-2xl md:rounded-3xl text-center border border-white/5">
+                    <p class="text-[8px] md:text-[9px] text-slate-500 uppercase font-black tracking-widest mb-1 truncate">${n}</p>
+                    <p class="text-lg md:text-xl font-black text-white italic">${s}</p>
+                </div>
+            `).join('');
+            p.scrollIntoView({behavior:'smooth', block: 'center'});
+        }
+
+        function closeDetail() {
+            document.getElementById('dayDetail').classList.add('hidden');
+        }
+
+        // --- SAVE & EXPORT ---
+        function saveDay() {
+            const key = new Date().toISOString().split('T')[0];
+            const scores = {};
+            criteria.forEach(c => scores[c.name] = document.getElementById(`val_${c.name}`).innerText);
+            
+            // Check weight validation before saving
+            const totalWeight = criteria.reduce((sum, c) => sum + c.weight, 0);
+            if(totalWeight !== 100) {
+                alert("Моля, настройте тежестите така, че сборът им да е точно 100% преди да запазите.");
+                document.getElementById('settingsPanel').classList.remove('hidden');
+                return;
+            }
+            
+            history[key] = {
+                avg: document.getElementById('totalScore').innerText,
+                scores: scores,
+                note: document.getElementById('dayNote').value
+            };
+            
+            localStorage.setItem('zm_final_db', JSON.stringify(history));
+            renderCalendar();
+            if(isSelectionMode) calculatePeriodStats(true);
+            else calculatePeriodStats(false);
+            
+            // Small success visual feedback
+            const btn = document.querySelector('button[onclick="saveDay()"]');
+            const oldText = btn.innerText;
+            btn.innerText = "✓ ЗАПАЗЕНО";
+            btn.classList.replace('from-indigo-600', 'from-emerald-600');
+            btn.classList.replace('to-indigo-800', 'to-emerald-800');
+            setTimeout(() => {
+                btn.innerText = oldText;
+                btn.classList.replace('from-emerald-600', 'from-indigo-600');
+                btn.classList.replace('to-emerald-800', 'to-indigo-800');
+            }, 2000);
+        }
+
+        function exportData() {
+            const data = { db: history, cfg: criteria };
+            const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); 
+            a.download = `zenmood_backup_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+        }
+
+        init();
+    </script>
+</body>
+</html>
